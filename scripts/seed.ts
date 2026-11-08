@@ -10,25 +10,9 @@ import { eq } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import { createDb } from "../src/db/client";
 import * as schema from "../src/db/schema";
-
-const BARANGAYS = [
-  "Apas",
-  "Aluna",
-  "Andales",
-  "Calacapan",
-  "Gimangpang",
-  "Jampason",
-  "Kamelon",
-  "Kanitoan",
-  "Oguis",
-  "Pagahan",
-  "Poblacion",
-  "Pontacon",
-  "San Pedro",
-  "Sinalac",
-  "Tawantawan",
-  "Tubigan",
-];
+import type { UserRole } from "../src/db/schema/enums";
+import { BARANGAYS } from "../src/lib/constants";
+import { DEMO_ACCOUNTS } from "../src/lib/demo-accounts";
 
 const LAB_TESTS = [
   "Complete Blood Count (CBC)",
@@ -142,27 +126,55 @@ export async function seed(db: SeedDb) {
   if (!email || !password) {
     console.log("• SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD not set — skipping admin");
   } else {
-    const existing = await db.query.user.findFirst({ where: eq(schema.user.email, email) });
-    if (existing) {
-      console.log(`• admin ${email} already exists`);
-    } else {
-      const id = crypto.randomUUID();
-      await db.transaction(async (tx) => {
-        await tx
-          .insert(schema.user)
-          .values({ id, name: "System Admin", email, emailVerified: true, role: "admin" });
-        await tx.insert(schema.account).values({
-          id: crypto.randomUUID(),
-          accountId: id,
-          providerId: "credential",
-          userId: id,
-          password: await hashPassword(password),
-        });
-        await tx.insert(schema.staffProfiles).values({ userId: id, firstName: "System", lastName: "Admin" });
-      });
-      console.log(`✔ admin ${email} created`);
-    }
+    await createStaff(db, { email, password, role: "admin", firstName: "System", lastName: "Admin" });
   }
+
+  if (process.env.SEED_DEMO_ACCOUNTS === "true") {
+    if (process.env.NODE_ENV === "production")
+      throw new Error("Refusing to create demo accounts in production");
+    const demoPassword = process.env.SEED_DEMO_PASSWORD || password;
+    if (!demoPassword) throw new Error("Set SEED_DEMO_PASSWORD (or SEED_ADMIN_PASSWORD) for demo accounts");
+    for (const a of DEMO_ACCOUNTS) await createStaff(db, { ...a, password: demoPassword });
+  }
+}
+
+async function createStaff(
+  db: SeedDb,
+  a: {
+    email: string;
+    password: string;
+    role: UserRole;
+    firstName: string;
+    lastName: string;
+    prcNumber?: string;
+    specialization?: string;
+  },
+) {
+  const existing = await db.query.user.findFirst({ where: eq(schema.user.email, a.email) });
+  if (existing) {
+    console.log(`• ${a.role} ${a.email} already exists`);
+    return;
+  }
+  const id = crypto.randomUUID();
+  const name = `${a.firstName} ${a.lastName}`;
+  await db.transaction(async (tx) => {
+    await tx.insert(schema.user).values({ id, name, email: a.email, emailVerified: true, role: a.role });
+    await tx.insert(schema.account).values({
+      id: crypto.randomUUID(),
+      accountId: id,
+      providerId: "credential",
+      userId: id,
+      password: await hashPassword(a.password),
+    });
+    await tx.insert(schema.staffProfiles).values({
+      userId: id,
+      firstName: a.firstName,
+      lastName: a.lastName,
+      prcNumber: a.prcNumber ?? null,
+      specialization: a.specialization ?? null,
+    });
+  });
+  console.log(`✔ ${a.role} ${a.email} created`);
 }
 
 // Run directly: `tsx scripts/seed.ts`

@@ -1,28 +1,28 @@
-import Link from "next/link";
-import { requireUser } from "@/lib/auth/session";
+import { cookies } from "next/headers";
+import { AppHeader } from "@/components/layout/app-header";
+import { AppSidebar } from "@/components/layout/app-sidebar";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { homeForRole } from "@/lib/auth/permissions";
-import { SignOutButton } from "./sign-out-button";
+import { requireUser } from "@/lib/auth/session";
+import { navForRole } from "@/lib/nav";
+import { usingMockData } from "@/server/data-source";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
+  const sidebarOpen = (await cookies()).get("sidebar_state")?.value !== "false";
+  const nav = navForRole(user.role);
 
   return (
-    <div className="flex flex-1 flex-col">
-      <header className="border-b border-neutral-200 dark:border-neutral-800">
-        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-3">
-          <Link href={homeForRole(user.role)} className="font-semibold">
-            RHU HIS
-          </Link>
-          <div className="flex items-center gap-3 text-sm">
-            <span className="hidden sm:inline">{user.name}</span>
-            <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800 capitalize dark:bg-emerald-900 dark:text-emerald-100">
-              {user.role}
-            </span>
-            <SignOutButton />
-          </div>
-        </div>
-      </header>
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">{children}</main>
-    </div>
+    <SidebarProvider defaultOpen={sidebarOpen}>
+      <AppSidebar nav={nav} homeHref={homeForRole(user.role)} />
+      <SidebarInset>
+        <AppHeader
+          nav={nav}
+          user={{ name: user.name, email: user.email, role: user.role }}
+          demoData={usingMockData}
+        />
+        <div className="flex-1 p-4 md:p-6">{children}</div>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }

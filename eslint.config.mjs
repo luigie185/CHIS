@@ -13,6 +13,11 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
+  {
+    // shadcn/ui components are vendored as-is from the shadcn registry.
+    files: ["src/components/ui/**"],
+    rules: { "react-hooks/purity": "off" },
+  },
 ]);
 
 export default eslintConfig;

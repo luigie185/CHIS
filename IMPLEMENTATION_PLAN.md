@@ -1161,7 +1161,7 @@ Estimated for 1–2 developers. Adjust to your schedule. **Part A builds the com
 | Phase | Duration | Deliverables | Status |
 |---|---|---|---|
 | **0. Setup** | Week 1 | Next.js + TS + Tailwind; Drizzle + PGlite (local) / Neon; Better Auth with roles; `proxy.ts`; role home pages; seed script; CI. | ✅ Done |
-| **F1. UI foundation** | Week 2 | shadcn/ui; app shell (sidebar by role, header, breadcrumbs, mobile nav); shared components (data table with search/filters/pagination, form fields, date picker, status badges, empty/loading/error states, confirm dialog, toasts); mock store + fixture generators; demo accounts for each role; "Demo data" badge; landing + service pages. | |
+| **F1. UI foundation** | Week 2 | shadcn/ui; app shell (sidebar by role, header, breadcrumbs, mobile nav); shared components (data table with search/filters/pagination, form fields, date picker, status badges, empty/loading/error states, confirm dialog, toasts); mock store + fixture generators; demo accounts for each role; "Demo data" badge; landing + service pages. | ✅ Done |
 | **F2. Patients & encounters** | Week 3 | Patient list/search/filters, register (with duplicate warning), profile with tabs, edit; start encounter + vitals; queue board; staff dashboard. | |
 | **F3. Doctor workspace** | Week 4 | Doctor dashboard; consultation screen (diagnoses, labs, prescriptions, referral); complete/cancel; consultation history; ITR table; referrals table; printable prescription and referral slip (PDF preview). | |
 | **F4. Programs** | Weeks 5–6 | Prenatal (pregnancy record, visits + trimester checklists, labs, delivery, newborns, postpartum); EPI profiles + immunization card; vaccinations + appointments; risk assessment form + table; mental health sessions + participants. | |

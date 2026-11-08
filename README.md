@@ -2,7 +2,7 @@
 
 Next.js + Postgres rebuild of the RHU health records system. See [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md) for the full plan.
 
-**Status:** Phase 0 (setup): auth with roles, base schema, seed, landing/login/role home pages.
+**Status:** Phase F1 (UI foundation) done: app shell, shared components, demo data, demo accounts. Screens are being built on demo data first, then connected to the database (see plan §3.4 and §14).
 
 ## Run locally
 
@@ -15,7 +15,9 @@ pnpm db:setup               # create tables + seed barangays, lab tests, vaccine
 pnpm dev                    # starts the local database and the app → http://localhost:3000
 ```
 
-Log in at `/login` with `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` from `.env` (default `admin@rhu.local` / `ChangeMe123!`). Change it before using real data.
+Open http://localhost:3000/login. In development the login page shows **demo account buttons** (admin, doctor, nurse, midwife, encoder) so you can switch roles in one click. Or sign in with `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` from `.env` (default `admin@rhu.local` / `ChangeMe123!`). Demo accounts need `SEED_DEMO_ACCOUNTS=true` in `.env` before `pnpm db:setup`.
+
+Patient and clinical screens use **generated demo data** (a "Demo data" badge shows in the header). It resets when the dev server restarts. Logins and roles are real.
 
 After pulling new migrations, stop `pnpm dev` and run `pnpm db:setup` again (safe to re-run). `pnpm db:reset` deletes the local database.
 
@@ -42,8 +44,14 @@ src/
   proxy.ts               # guests → /login (Next 16 renamed middleware to proxy)
   db/schema/             # Drizzle tables, one file per module
   lib/auth/              # Better Auth config, session helpers, permission matrix
-  app/(auth)/login       # login page
-  app/(app)/             # signed-in area: /admin, /doctor, /dashboard
+  app/(public)/          # landing + service pages
+  app/(auth)/login       # login page (+ demo account buttons in dev)
+  app/(app)/             # signed-in area with sidebar: /admin, /doctor, /dashboard, /patients, /ui-kit
+  components/ui/         # shadcn/ui components (vendored)
+  components/            # shared: data-table, page-header, status-badge, forms/, layout/
+  lib/nav.ts             # sidebar items per role
+  mocks/                 # demo data store (frontend phases only; imported by src/server only)
+  server/<module>/       # queries/actions — mock now, database in Part B
   app/api/auth/[...all]  # Better Auth handler
 scripts/seed.ts          # lookups + first admin
 scripts/local-db.ts      # PGlite setup / serve / reset

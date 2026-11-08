@@ -1,23 +1,28 @@
 "use client";
 
+import { FlaskConical } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth/client";
 
-export function LoginForm() {
+export type DemoLogin = {
+  accounts: { role: string; email: string }[];
+  password: string;
+  adminPassword: string;
+};
+
+export function LoginForm({ demo }: { demo?: DemoLogin }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
-  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  async function signIn(email: string, password: string) {
     setError(null);
     setPending(true);
-    const form = new FormData(e.currentTarget);
-    const { error } = await authClient.signIn.email({
-      email: String(form.get("email")),
-      password: String(form.get("password")),
-    });
+    const { error } = await authClient.signIn.email({ email, password });
     setPending(false);
     if (error) {
       setError(
@@ -32,31 +37,57 @@ export function LoginForm() {
     router.refresh();
   }
 
-  const input =
-    "w-full rounded-md border border-neutral-300 bg-transparent px-3 py-2 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 dark:border-neutral-700";
+  function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = new FormData(e.currentTarget);
+    void signIn(String(form.get("email")), String(form.get("password")));
+  }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4">
-      <label className="flex flex-col gap-1 text-sm font-medium">
-        Email
-        <input name="email" type="email" autoComplete="username" required className={input} />
-      </label>
-      <label className="flex flex-col gap-1 text-sm font-medium">
-        Password
-        <input name="password" type="password" autoComplete="current-password" required className={input} />
-      </label>
-      {error && (
-        <p role="alert" className="text-sm text-red-600">
-          {error}
-        </p>
+    <div className="flex flex-col gap-6">
+      <form onSubmit={onSubmit}>
+        <FieldGroup>
+          <Field>
+            <FieldLabel htmlFor="email">Email</FieldLabel>
+            <Input id="email" name="email" type="email" autoComplete="username" required />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="password">Password</FieldLabel>
+            <Input id="password" name="password" type="password" autoComplete="current-password" required />
+          </Field>
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
+          <Button type="submit" disabled={pending}>
+            {pending ? "Signing in…" : "Sign in"}
+          </Button>
+        </FieldGroup>
+      </form>
+
+      {demo && (
+        <div className="rounded-lg border border-dashed border-amber-500/50 p-3">
+          <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+            <FlaskConical className="size-3.5" /> Demo accounts (local development only)
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {demo.accounts.map((a) => (
+              <Button
+                key={a.email}
+                type="button"
+                variant="outline"
+                size="sm"
+                className="capitalize"
+                disabled={pending}
+                onClick={() => signIn(a.email, a.role === "admin" ? demo.adminPassword : demo.password)}
+              >
+                {a.role}
+              </Button>
+            ))}
+          </div>
+        </div>
       )}
-      <button
-        type="submit"
-        disabled={pending}
-        className="rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60"
-      >
-        {pending ? "Signing in…" : "Sign in"}
-      </button>
-    </form>
+    </div>
   );
 }

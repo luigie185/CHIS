@@ -27,7 +27,8 @@ export const auth = betterAuth({
     updateAge: 60 * 30,
   },
   rateLimit: {
-    enabled: true,
+    // Production only, so switching demo roles in local dev is not throttled.
+    enabled: process.env.NODE_ENV === "production",
     window: 60,
     max: 100,
     customRules: { "/sign-in/email": { window: 60, max: 5 } },
