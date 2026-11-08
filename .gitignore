@@ -54,3 +54,6 @@ test-results/
 *.pid
 *.seed
 *.pid.lock
+
+# local PGlite database
+.data/

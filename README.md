@@ -6,30 +6,34 @@ Next.js + Postgres rebuild of the RHU health records system. See [`IMPLEMENTATIO
 
 ## Run locally
 
-Requirements: Node 22+, pnpm 10 (`corepack enable`), and Postgres 16 (Docker or a local install).
+Requirements: Node 22+ and pnpm 10 (`corepack enable`). **No Docker or Postgres install needed**: local dev uses [PGlite](https://pglite.dev), a full Postgres that runs inside Node and stores data in `./.data/pglite`.
 
 ```bash
 pnpm install
 cp .env.example .env        # then set BETTER_AUTH_SECRET (openssl rand -base64 32)
-docker compose up -d        # starts Postgres on localhost:5432 (skip if you have your own)
-pnpm db:migrate             # create tables
-pnpm db:seed                # barangays, lab tests, vaccines, first admin
-pnpm dev                    # http://localhost:3000
+pnpm db:setup               # create tables + seed barangays, lab tests, vaccines, first admin
+pnpm dev                    # starts the local database and the app → http://localhost:3000
 ```
 
 Log in at `/login` with `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` from `.env` (default `admin@rhu.local` / `ChangeMe123!`). Change it before using real data.
+
+After pulling new migrations, stop `pnpm dev` and run `pnpm db:setup` again (safe to re-run). `pnpm db:reset` deletes the local database.
+
+To use a real Postgres instead (e.g. a Neon branch), set `DATABASE_URL` in `.env`, then run `pnpm db:migrate && pnpm db:seed` and `pnpm dev:next`.
 
 ## Scripts
 
 | Script | What it does |
 |---|---|
-| `pnpm dev` | Dev server |
+| `pnpm dev` | Local database (PGlite on port 5433) + Next.js dev server |
+| `pnpm dev:next` | Next.js only (when `DATABASE_URL` points to your own Postgres) |
 | `pnpm build` / `pnpm start` | Production build / serve |
 | `pnpm lint` / `pnpm typecheck` / `pnpm test` | ESLint / TypeScript / Vitest |
+| `pnpm db:setup` | Migrate + seed the local PGlite database (run with `pnpm dev` stopped) |
+| `pnpm db:reset` | Delete the local database |
 | `pnpm db:generate` | Create a SQL migration from schema changes in `src/db/schema` |
-| `pnpm db:migrate` | Apply migrations |
-| `pnpm db:seed` | Seed lookups + admin (safe to re-run) |
-| `pnpm db:studio` | Browse the database in Drizzle Studio |
+| `pnpm db:migrate` / `pnpm db:seed` | Migrate / seed the database the app is connected to (`DATABASE_URL`, or the local server while `pnpm dev` runs) |
+| `pnpm db:studio` | Browse the database in Drizzle Studio (while `pnpm dev` runs) |
 
 ## Layout
 
@@ -41,12 +45,14 @@ src/
   app/(auth)/login       # login page
   app/(app)/             # signed-in area: /admin, /doctor, /dashboard
   app/api/auth/[...all]  # Better Auth handler
-scripts/seed.ts
+scripts/seed.ts          # lookups + first admin
+scripts/local-db.ts      # PGlite setup / serve / reset
 drizzle/                 # generated migrations (commit these)
 ```
 
 Server code checks access with `requireUser()`, `requireRole(...)`, or `requirePermission("patient:write")` from `src/lib/auth/session.ts`. Wrong role → 403 page.
 
 ## Notes vs. the plan
-- DB driver is `postgres` (postgres.js) instead of `@neondatabase/serverless`, so the same code works against local Postgres and Neon. Use Neon's pooled URL for `DATABASE_URL`.
+- DB driver is `pg` (node-postgres) instead of `@neondatabase/serverless`, so the same code works against the local PGlite server and Neon. Use Neon's pooled URL for `DATABASE_URL`.
+- Local dev uses PGlite instead of Docker. It is real Postgres, so the schema and migrations are the same as production.
 - Public sign-up is disabled; admins will create staff accounts (Phase 1).

@@ -1,15 +1,10 @@
 import "server-only";
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
-import * as schema from "./schema";
+import { createDb } from "./client";
 
-const url = process.env.DATABASE_URL;
-if (!url) throw new Error("DATABASE_URL is not set");
+// Reuse one connection pool across hot reloads in development.
+const globalForDb = globalThis as unknown as { rhuDb?: ReturnType<typeof createDb> };
+const instance = globalForDb.rhuDb ?? createDb();
+globalForDb.rhuDb = instance;
 
-// Reuse one client across hot reloads in development.
-const globalForDb = globalThis as unknown as { pgClient?: ReturnType<typeof postgres> };
-const client = globalForDb.pgClient ?? postgres(url, { max: 10, prepare: false });
-if (process.env.NODE_ENV !== "production") globalForDb.pgClient = client;
-
-export const db = drizzle(client, { schema, casing: "snake_case" });
+export const db = instance.db;
 export type DB = typeof db;

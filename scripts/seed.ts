@@ -1,12 +1,13 @@
 /**
  * Seeds lookup tables and the first admin account. Safe to run more than once.
- *   pnpm db:seed
+ *   pnpm db:seed   (needs a running database: `pnpm db:local` or DATABASE_URL)
+ *   pnpm db:setup  (migrate + seed the local PGlite database, no server needed)
  */
 import "dotenv/config";
 import { hashPassword } from "better-auth/crypto";
 import { eq } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
+import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
+import { createDb } from "../src/db/client";
 import * as schema from "../src/db/schema";
 
 const BARANGAYS = [
@@ -117,12 +118,9 @@ const VACCINES: (typeof schema.vaccines.$inferInsert)[] = [
   },
 ];
 
-async function main() {
-  const url = process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL;
-  if (!url) throw new Error("DATABASE_URL is not set");
-  const client = postgres(url, { max: 1 });
-  const db = drizzle(client, { schema, casing: "snake_case" });
+export type SeedDb = PgDatabase<PgQueryResultHKT, typeof schema>;
 
+export async function seed(db: SeedDb) {
   await db
     .insert(schema.barangays)
     .values(BARANGAYS.map((name) => ({ name })))
@@ -164,11 +162,15 @@ async function main() {
       console.log(`✔ admin ${email} created`);
     }
   }
-
-  await client.end();
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+// Run directly: `tsx scripts/seed.ts`
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const { db, close } = createDb(process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL);
+  seed(db)
+    .then(close)
+    .catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
+}
