@@ -2,6 +2,8 @@
 
 > Rebuild of `health-capstone` (Laravel 11 + Vue 3 + Inertia + MySQL) as a **Next.js + Postgres** application deployed on **Vercel**.
 > This document covers the tech stack, architecture, roles, database schema, every module and feature, the main user flows, the data migration from the old system, security, testing, deployment, and a phased timeline.
+>
+> **Build order: frontend first.** Every screen is built and clickable in local dev against realistic mock data before the real database logic is written (see [3.4](#34-frontend-first-development-mock-data-layer) and [14](#14-implementation-phases-and-timeline)). Authentication and roles are real from the start.
 
 ---
 
@@ -81,7 +83,8 @@ A records, queueing, and analytics system for a Rural Health Unit (RHU). Staff r
 | Layer | Technology | Purpose / Reason |
 |---|---|---|
 | Database | **PostgreSQL on Neon** (via Vercel Marketplace) | Serverless Postgres, billed through Vercel, database branching for previews. Region: **Singapore (`ap-southeast-1`)**. |
-| DB driver | **`@neondatabase/serverless`** | Works in serverless functions with connection pooling. |
+| DB driver | **`pg` (node-postgres)** | Same code talks to Neon (pooled URL) and the local dev database. |
+| Local dev database | **PGlite** (embedded Postgres in `./.data/pglite`) | No Docker or Postgres install; `pnpm dev` starts it. Same schema and migrations as production. |
 | ORM / migrations | **Drizzle ORM + drizzle-kit** | Lightweight, SQL-like, typed schema, versioned SQL migrations. |
 | Search | **Postgres `pg_trgm`** extension | Fast fuzzy patient name search. |
 | File storage | **Vercel Blob** | Profile pictures, uploaded CSVs, generated reports. |
@@ -139,7 +142,7 @@ A records, queueing, and analytics system for a Rural Health Unit (RHU). Staff r
         ▼
  ┌──────────────────────── Vercel ────────────────────────┐
  │  Next.js App Router                                     │
- │   ├─ middleware.ts  → session check, redirect to /login │
+ │   ├─ proxy.ts       → session check, redirect to /login │
  │   ├─ Server Components (pages, read data)               │
  │   ├─ Server Actions  (mutations, Zod validation, RBAC)  │
  │   ├─ Route Handlers  (/api/auth/*, /api/cron/*, PDFs)   │
@@ -152,7 +155,7 @@ A records, queueing, and analytics system for a Rural Health Unit (RHU). Staff r
 ```
 
 ### 3.2 Layering rules
-1. **Pages (Server Components)** call functions in `src/server/<module>/queries.ts` only. No raw DB calls in pages.
+1. **Pages (Server Components)** call functions in `src/server/<module>/queries.ts` only. No raw DB calls in pages. During the frontend phases these functions return mock data (see 3.4); the page code does not change when they are switched to the database.
 2. **Mutations** go through **Server Actions** in `src/server/<module>/actions.ts`. Each action:
    1. gets the session (`requireUser()`),
    2. checks permission (`requirePermission('itr:write')`),
@@ -168,6 +171,23 @@ A records, queueing, and analytics system for a Rural Health Unit (RHU). Staff r
 - Lists and dashboards: Server Components with server-side pagination (`?page=&q=&barangay=`).
 - Forms: Client Components (react-hook-form) submitting to Server Actions.
 - Doctor queue: Server Component + `router.refresh()` polling every 15–30 s (simple, no websocket infrastructure needed). Optional upgrade later: Pusher/Ably for real-time.
+
+### 3.4 Frontend-first development (mock data layer)
+The UI for every module is built first so the whole system can be clicked through in local dev and reviewed with RHU staff before the database logic exists.
+
+**How it works**
+- **Types first.** Each module's data shapes are defined once in `src/lib/types/<module>.ts` (e.g. `Patient`, `Encounter`, `QueueItem`). Later these are derived from / checked against the Drizzle schema.
+- **Zod schemas are real from day one.** Forms validate exactly as they will in production (`src/lib/validators/<module>.ts`).
+- **Mock store.** `src/mocks/` holds generated fixtures (≈200 patients across the 16 barangays, encounters for the last 90 days, pregnancies, vaccinations, risk assessments, sessions) and an in-memory store. Fixtures are generated with a fixed random seed, so everyone sees the same data.
+- **Same function signatures.** `src/server/<module>/queries.ts` and `actions.ts` keep their final signatures (`listPatients({ q, barangayId, page })`, `createEncounter(input)` …). In the frontend phases they read from and write to the mock store; in the backend phases their bodies are replaced with Drizzle queries. Pages and components are not rewritten.
+- **Mutations work.** Server actions validate with Zod, check permissions, update the mock store, and `revalidatePath`, so forms, queue status changes and toasts behave realistically. Changes last until the dev server restarts; `pnpm dev` always starts from the same fixtures.
+- **Auth and roles are real.** Login, sessions, role redirects and `requirePermission` already run on the database (Phase 0), so role-based screens are tested with real accounts. The seed script creates one demo account per role.
+- **Visible mode.** A small "Demo data" badge appears in the header while a module still uses mock data. The badge disappears once all modules are on the database.
+
+**Rules**
+- Mock data is fake (generated names and numbers). No real patient data in fixtures or screenshots.
+- Pages never import from `src/mocks/` directly; only `src/server/**` does. This keeps the switch to the database a server-only change.
+- Each module's switch to the database is one PR: replace query/action bodies, add integration tests, remove that module from the mock store.
 
 ---
 
@@ -938,7 +958,8 @@ rhu-his/
 ├─ drizzle/                    # generated SQL migrations
 ├─ public/                     # logo, static images
 ├─ scripts/
-│  ├─ seed.ts                  # barangays, lab tests, vaccines, first admin
+│  ├─ seed.ts                  # barangays, lab tests, vaccines, first admin, demo accounts per role
+│  ├─ local-db.ts              # PGlite local database: setup / serve / reset
 │  └─ migrate-legacy.ts        # MySQL → Postgres data migration
 ├─ src/
 │  ├─ app/
@@ -975,7 +996,11 @@ rhu-his/
 │  ├─ db/
 │  │  ├─ index.ts              # Drizzle client (Neon)
 │  │  └─ schema/               # one file per module (patients.ts, encounters.ts, …)
+│  ├─ mocks/                   # frontend phases only: fixtures + in-memory store (server-only)
+│  │  ├─ fixtures/             # seeded generators per module
+│  │  └─ store.ts
 │  ├─ lib/
+│  │  ├─ types/                # shared data shapes per module
 │  │  ├─ auth/                 # Better Auth config, session helpers, permissions.ts
 │  │  ├─ validators/           # Zod schemas per module
 │  │  ├─ prenatal/             # EDC/AOG/trimester helpers, checklists
@@ -987,7 +1012,7 @@ rhu-his/
 │  │  ├─ patients/{queries,actions}.ts
 │  │  ├─ encounters/{queries,actions}.ts
 │  │  └─ …                     # one folder per module
-│  └─ middleware.ts
+│  └─ proxy.ts                 # Next 16 name for middleware
 ├─ tests/
 │  ├─ unit/                    # Vitest
 │  └─ e2e/                     # Playwright
@@ -1004,7 +1029,7 @@ rhu-his/
 Patient health data is **sensitive personal information** under the Philippine Data Privacy Act of 2012 (RA 10173).
 
 ### 10.1 Access control
-- `middleware.ts` redirects any unauthenticated request outside `(public)` and `(auth)` to `/login`.
+- `proxy.ts` (Next 16's name for middleware) redirects any unauthenticated request outside `(public)` and `(auth)` to `/login`.
 - Every query/action checks role permissions server-side (`requirePermission`).
 - Least privilege: admins do not edit clinical content; encoders cannot diagnose or prescribe.
 - Session idle timeout and absolute session lifetime.
@@ -1068,7 +1093,7 @@ Patient health data is **sensitive personal information** under the Philippine D
 | Level | Tool | What is tested |
 |---|---|---|
 | Unit | Vitest | EDC/AOG/trimester calculation, vaccine schedule, risk level calculator, BP parsing, Zod schemas, permission matrix. |
-| Integration | Vitest + Neon test branch (or local Postgres via Docker) | Server actions: create patient, start encounter, complete consultation, prenatal visit, vaccination + appointment, import batch; permission denials. |
+| Integration | Vitest + Neon test branch (or local PGlite) | Server actions: create patient, start encounter, complete consultation, prenatal visit, vaccination + appointment, import batch; permission denials. |
 | End-to-end | Playwright | Login per role; staff registers patient → doctor completes consultation; prenatal flow; vaccination + appointment; admin deactivates staff and that user can no longer log in; unauthenticated user cannot open `/patients`. |
 | Access control | Playwright / integration | Every `(app)` route returns redirect for guests and 403 for wrong role. |
 | Accessibility | `@axe-core/playwright` | Key pages have no critical violations. |
@@ -1120,7 +1145,7 @@ CI (GitHub Actions) on every PR: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `dr
 |---|---|---|
 | Production | `main` | Neon main branch |
 | Preview | any PR branch | Neon branch per preview (seeded fake data only) |
-| Local | — | Local Postgres (Docker) or a personal Neon branch |
+| Local | — | PGlite in `./.data/pglite` (started by `pnpm dev`) or a personal Neon branch |
 
 ### 13.5 Plan note
 The Vercel **Hobby** plan is intended for personal, non-commercial use — fine for the capstone demo. If the RHU will use the system in production, review Vercel's current terms; the **Pro** plan is likely required. Check Neon and Vercel plan limits (storage, function duration, cron frequency) against expected usage.
@@ -1129,25 +1154,44 @@ The Vercel **Hobby** plan is intended for personal, non-commercial use — fine 
 
 ## 14. Implementation Phases and Timeline
 
-Estimated for 1–2 developers. Adjust to your schedule.
+Estimated for 1–2 developers. Adjust to your schedule. **Part A builds the complete UI on mock data; Part B connects each module to the database.** After Part A the whole system can be demonstrated and tested in local dev.
+
+### Part A — Frontend on mock data
+
+| Phase | Duration | Deliverables | Status |
+|---|---|---|---|
+| **0. Setup** | Week 1 | Next.js + TS + Tailwind; Drizzle + PGlite (local) / Neon; Better Auth with roles; `proxy.ts`; role home pages; seed script; CI. | ✅ Done |
+| **F1. UI foundation** | Week 2 | shadcn/ui; app shell (sidebar by role, header, breadcrumbs, mobile nav); shared components (data table with search/filters/pagination, form fields, date picker, status badges, empty/loading/error states, confirm dialog, toasts); mock store + fixture generators; demo accounts for each role; "Demo data" badge; landing + service pages. | |
+| **F2. Patients & encounters** | Week 3 | Patient list/search/filters, register (with duplicate warning), profile with tabs, edit; start encounter + vitals; queue board; staff dashboard. | |
+| **F3. Doctor workspace** | Week 4 | Doctor dashboard; consultation screen (diagnoses, labs, prescriptions, referral); complete/cancel; consultation history; ITR table; referrals table; printable prescription and referral slip (PDF preview). | |
+| **F4. Programs** | Weeks 5–6 | Prenatal (pregnancy record, visits + trimester checklists, labs, delivery, newborns, postpartum); EPI profiles + immunization card; vaccinations + appointments; risk assessment form + table; mental health sessions + participants. | |
+| **F5. Admin, cases & analytics** | Week 7 | Staff management screens; settings (facility, barangays, lab tests, vaccines); audit log viewer; disease and critical cases; analytics dashboard with charts and filters; CSV import screens (parse + preview + error report against the mock store). | |
+| **F6. UI review** | Week 8 | Walkthrough with RHU staff on the mock data; fix flows and wording; responsive and accessibility pass (`@axe-core/playwright`); Playwright smoke tests of the main paths. Freeze the screen designs. | |
+
+### Part B — Backend: connect each module to the database
+
+Each phase adds the tables from Section 5, replaces that module's mock query/action bodies with Drizzle, adds audit logging and integration tests, and removes the module from the mock store. The screens from Part A stay as they are.
 
 | Phase | Duration | Deliverables |
 |---|---|---|
-| **0. Setup** | Week 1 | Next.js + TS + Tailwind + shadcn/ui; Drizzle + Neon; Better Auth with roles; middleware; app layout + sidebar; CI; first Vercel deploy; seed script (barangays, lab tests, vaccines, admin). |
-| **1. Staff & patients** | Weeks 2–3 | Staff management; patient registry (register, duplicate check, search, list, profile, edit); audit logging helper; landing page. |
-| **2. Encounters & doctor** | Weeks 4–5 | Encounters + vitals + queue; doctor dashboard; consultation screen (diagnoses, labs, prescriptions, referrals); ITR table; referral table; PDFs (prescription, referral slip). |
-| **3. Prenatal & postpartum** | Weeks 6–7 | Pregnancy record, visits with trimester checklists, labs, delivery, newborns, postpartum visits; prenatal table; prenatal PDF. |
-| **4. EPI & vaccination** | Week 8 | Immunization profiles; vaccinations; schedule-based appointments; appointment management; cron for missed appointments; immunization card PDF. |
-| **5. Risk & mental health** | Week 9 | Risk assessment + calculator; risk table; mental health sessions + participants. |
-| **6. Cases & analytics** | Week 10 | Disease cases, critical cases, dashboards, analytics page with filters and CSV export. |
-| **7. Import & migration** | Week 11 | CSV import (all types) with preview and error report; legacy MySQL migration script and verification. |
-| **8. Hardening & launch** | Week 12 | Full E2E suite, access-control tests, security headers, Sentry, performance pass, backup/restore test, user training, go-live. |
-
----
+| **B1. Staff & patients** | Week 9 | Staff management (create, deactivate → session revoke, PRC fields); `patients` + `pg_trgm` search + duplicate check; `audit_logs` helper. |
+| **B2. Encounters & doctor** | Week 10 | `encounters`, `vital_signs`, queue numbering, `consultations`, diagnoses, labs, prescriptions, referrals; queue clean-up cron; real PDFs. |
+| **B3. Prenatal & postpartum** | Week 11 | `pregnancies`, `prenatal_labs`, `prenatal_visits` + checklist, `deliveries`, `newborns`, `postpartum_visits`. |
+| **B4. EPI, vaccination, risk, mental health** | Week 12 | `immunization_profiles`, `vaccinations`, `vaccine_appointments` + missed-appointment cron; `risk_assessments` + calculator; mental health tables. |
+| **B5. Cases, analytics, import** | Week 13 | Analytics SQL views; disease/critical case queries; CSV import into real tables with `import_jobs`; CSV export. Remove the mock store and "Demo data" badge. |
+| **B6. Migration & launch** | Week 14 | Legacy MySQL migration script and verification; full E2E suite on the real database; security headers, Sentry, performance pass, backup/restore test; user training; Vercel production deploy; go-live. |
 
 ## 15. Definition of Done and Acceptance Criteria
 
-A feature is **done** when:
+**Frontend phases (Part A)** — a screen is done when:
+- [ ] It is reachable from the sidebar for the right roles, and returns 403 for other roles.
+- [ ] Lists have search, filters and pagination; forms validate with the shared Zod schema and show field errors.
+- [ ] Loading, empty and error states are designed.
+- [ ] Mutations work against the mock store (with toast feedback).
+- [ ] Works on a phone-width screen and a desktop.
+- [ ] A Playwright smoke test covers the main path.
+
+**Backend phases (Part B)** — a feature is **done** when:
 - [ ] Server action validates input with Zod and checks permissions.
 - [ ] Unauthenticated access redirects to `/login`; wrong role gets 403.
 - [ ] Audit log row written for reads/writes of patient data.
@@ -1173,6 +1217,7 @@ Go-live acceptance:
 | Messy legacy data (free-text BP, `"None"` diagnoses, string numbers) | Bad analytics | Cleaning rules in migration script + review report. |
 | Serverless function time limits on big imports | Failed imports | Client-side parsing and batched inserts. |
 | Password hashes not portable | Staff locked out | Force password reset / bcrypt verification on first login. |
+| Mock data hides real-data problems (slow queries, missing fields) | Rework in Part B | Shared types + final function signatures from day one; fixtures sized realistically; each module switched to the DB with integration tests. |
 | Scope creep | Missed deadline | Phase-based delivery; v1 scope in Section 1. |
 | Vercel/Neon plan limits or cost | Downtime / bills | Monitor usage; upgrade plan before go-live. |
 | Privacy breach | Legal and patient harm | RBAC, audit logs, no PHI in logs, seeded-only previews, training. |
