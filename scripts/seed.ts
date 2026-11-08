@@ -5,6 +5,7 @@
  */
 import "dotenv/config";
 import { hashPassword } from "better-auth/crypto";
+import { pathToFileURL } from "node:url";
 import { eq } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import { createDb } from "../src/db/client";
@@ -165,7 +166,7 @@ export async function seed(db: SeedDb) {
 }
 
 // Run directly: `tsx scripts/seed.ts`
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const { db, close } = createDb(process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL);
   seed(db)
     .then(close)
