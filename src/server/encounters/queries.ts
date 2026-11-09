@@ -1,5 +1,5 @@
 import "server-only";
-import { format, subDays } from "date-fns";
+import { addDays, format, isSunday, startOfWeek, subDays, subWeeks } from "date-fns";
 import { requirePermission } from "@/lib/auth/session";
 import { formatPatientName } from "@/lib/format";
 import type { Encounter, EncounterListItem, EncounterStatus, VisitType } from "@/lib/types/encounter";
@@ -147,27 +147,55 @@ export async function todayCounts() {
   };
 }
 
+export type TrendSeries = { name: string; total: number; values: number[] };
+export type WeeklyTrend = { weeks: { start: string; label: string }[]; series: TrendSeries[] };
+
+/** Weekly counts for the `top` keys with the most visits over the period. */
+function weeklyTrend(
+  rows: { queueDate: string; key: string }[],
+  weekStarts: string[],
+  top: number,
+): TrendSeries[] {
+  const totals = new Map<string, number>();
+  for (const r of rows) totals.set(r.key, (totals.get(r.key) ?? 0) + 1);
+  const keys = [...totals.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, top);
+  return keys.map(([name, total]) => ({
+    name,
+    total,
+    values: weekStarts.map((start, i) => {
+      const end = weekStarts[i + 1] ?? "9999-12-31";
+      return rows.filter((r) => r.key === name && r.queueDate >= start && r.queueDate < end).length;
+    }),
+  }));
+}
+
 /** Aggregated numbers only — no names (admin reports, plan §4.1). */
 export async function visitReport() {
   await requirePermission("reports:read");
   await mockDelay();
   const { encounters, patients } = mockStore();
   const today = new Date();
-  const days = Array.from({ length: 14 }, (_, i) => format(subDays(today, 13 - i), "yyyy-MM-dd"));
   const monthFrom = format(subDays(today, 29), "yyyy-MM-dd");
+  // Daily trend: the last 30 calendar days up to yesterday, open days only (closed Sundays
+  // would read as dips; today is still in progress and is shown in its own tile).
+  const days = Array.from({ length: 30 }, (_, i) => subDays(today, 30 - i))
+    .filter((d) => !isSunday(d))
+    .map((d) => format(d, "yyyy-MM-dd"));
   const closed = encounters.filter((e) => e.status === "completed" || e.status === "referred_out");
   const month = closed.filter((e) => e.queueDate >= monthFrom);
 
-  const diagnosisCounts = new Map<string, number>();
-  for (const e of month) {
-    for (const d of e.diagnoses) diagnosisCounts.set(d.label, (diagnosisCounts.get(d.label) ?? 0) + 1);
-  }
-  const barangayCounts = new Map<string, number>();
+  // Last 8 complete weeks (Monday–Sunday); the current, partial week is left out so the
+  // lines don't appear to drop at the end.
+  const thisWeek = startOfWeek(today, { weekStartsOn: 1 });
+  const weekDates = Array.from({ length: 8 }, (_, i) => subWeeks(thisWeek, 8 - i));
+  const weeks = weekDates.map((d) => ({
+    start: format(d, "yyyy-MM-dd"),
+    label: `${format(d, "MMM d")}–${format(addDays(d, 6), "MMM d")}`,
+  }));
+  const weekStarts = weeks.map((w) => w.start);
+  const thisWeekStart = format(thisWeek, "yyyy-MM-dd");
+  const inWeeks = closed.filter((e) => e.queueDate >= weekStarts[0] && e.queueDate < thisWeekStart);
   const byId = new Map(patients.map((p) => [p.id, p]));
-  for (const e of month) {
-    const b = byId.get(e.patientId)!.barangayName;
-    barangayCounts.set(b, (barangayCounts.get(b) ?? 0) + 1);
-  }
 
   return {
     today: encounters.filter((e) => e.queueDate === format(today, "yyyy-MM-dd")).length,
@@ -175,12 +203,23 @@ export async function visitReport() {
     referredOut30Days: month.filter((e) => e.status === "referred_out").length,
     patients: patients.length,
     perDay: days.map((d) => ({ date: d, count: closed.filter((e) => e.queueDate === d).length })),
-    topDiagnoses: [...diagnosisCounts.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 8)
-      .map(([label, count]) => ({ label, count })),
-    byBarangay: [...barangayCounts.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .map(([name, count]) => ({ name, count })),
+    diagnosisTrend: {
+      weeks,
+      series: weeklyTrend(
+        inWeeks.flatMap((e) =>
+          e.diagnoses.filter((d) => d.isPrimary).map((d) => ({ queueDate: e.queueDate, key: d.label })),
+        ),
+        weekStarts,
+        4,
+      ),
+    } satisfies WeeklyTrend,
+    barangayTrend: {
+      weeks,
+      series: weeklyTrend(
+        inWeeks.map((e) => ({ queueDate: e.queueDate, key: byId.get(e.patientId)!.barangayName })),
+        weekStarts,
+        4,
+      ),
+    } satisfies WeeklyTrend,
   };
 }

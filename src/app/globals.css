@@ -37,6 +37,11 @@
   --sidebar-accent-foreground: oklch(0.262 0.051 172.552);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.596 0.145 163.225);
+  /* Categorical series (dataviz reference palette, validated light): blue, orange, aqua, yellow */
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
 }
 
 .dark {
@@ -71,6 +76,11 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.596 0.145 163.225);
+  /* Same hues stepped for the dark surface (validated dark) */
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
 }
 
 @theme inline {
