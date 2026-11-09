@@ -2,7 +2,9 @@
 
 Next.js + Postgres rebuild of the RHU health records system. See [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md) for the full plan.
 
-**Status:** Phase F1 (UI foundation) done: app shell, shared components, demo data, demo accounts. Screens are being built on demo data first, then connected to the database (see plan §3.4 and §14).
+**Status:** F2 done — the ITR (general consultation) flow works end to end on demo data: staff intake (patient → visit details → vital signs → queue), doctor queue (first come, first served) and consultation, ITR table and printable record, admin totals. Screens are built on demo data first, then connected to the database (plan §3.4, §14).
+
+**Roles:** `admin` (accounts, reports — no patient records), `staff` (nurses/midwives: intake and queue), `doctor` (queue, diagnosis, lab requests, prescriptions).
 
 ## Run locally
 
@@ -46,7 +48,7 @@ src/
   lib/auth/              # Better Auth config, session helpers, permission matrix
   app/(public)/          # landing + service pages
   app/(auth)/login       # login page (+ demo account buttons in dev)
-  app/(app)/             # signed-in area with sidebar: /admin, /doctor, /dashboard, /patients, /ui-kit
+  app/(app)/             # signed-in area: /dashboard, /visits/new, /queue, /doctor, /doctor/consult/[id], /itr, /patients, /admin
   components/ui/         # shadcn/ui components (vendored)
   components/            # shared: data-table, page-header, status-badge, forms/, layout/
   lib/nav.ts             # sidebar items per role

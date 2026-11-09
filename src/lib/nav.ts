@@ -3,6 +3,7 @@ import { hasPermission, homeForRole, type Permission } from "@/lib/auth/permissi
 
 export type NavIcon =
   | "home"
+  | "new-visit"
   | "patients"
   | "queue"
   | "consultations"
@@ -46,30 +47,29 @@ const NAV: { label: string; items: NavItemDef[] }[] = [
     items: [{ title: "Home", href: homeForRole, icon: "home", ready: true }],
   },
   {
-    label: "Patients",
+    label: "Consultation (ITR)",
     items: [
-      { title: "Patients", href: "/patients", icon: "patients", permission: "patient:read", ready: true },
       {
-        title: "Queue",
-        href: "/queue",
-        icon: "queue",
+        title: "New visit",
+        href: "/visits/new",
+        icon: "new-visit",
         permission: "encounter:create",
-        ready: false,
-        phase: "F2",
+        ready: true,
       },
+      { title: "Queue", href: "/queue", icon: "queue", permission: "patient:read", ready: true },
+      {
+        title: "Consultations",
+        href: "/itr",
+        icon: "consultations",
+        permission: "patient:read",
+        ready: true,
+      },
+      { title: "Patients", href: "/patients", icon: "patients", permission: "patient:read", ready: true },
     ],
   },
   {
-    label: "Clinical",
+    label: "Programs",
     items: [
-      {
-        title: "Consultations (ITR)",
-        href: "/itr",
-        icon: "consultations",
-        roles: CLINICAL,
-        ready: false,
-        phase: "F3",
-      },
       {
         title: "Referrals",
         href: "/referrals",
@@ -78,14 +78,7 @@ const NAV: { label: string; items: NavItemDef[] }[] = [
         ready: false,
         phase: "F3",
       },
-      {
-        title: "Prenatal",
-        href: "/prenatal",
-        icon: "prenatal",
-        roles: CLINICAL,
-        ready: false,
-        phase: "F4",
-      },
+      { title: "Prenatal", href: "/prenatal", icon: "prenatal", roles: CLINICAL, ready: false, phase: "F4" },
       {
         title: "Immunization (EPI)",
         href: "/immunization",
@@ -120,6 +113,7 @@ const NAV: { label: string; items: NavItemDef[] }[] = [
         title: "Disease cases",
         href: "/cases/disease",
         icon: "disease",
+        permission: "reports:read",
         ready: false,
         phase: "F5",
       },
@@ -127,6 +121,7 @@ const NAV: { label: string; items: NavItemDef[] }[] = [
         title: "Critical cases",
         href: "/cases/critical",
         icon: "critical",
+        permission: "reports:read",
         ready: false,
         phase: "F5",
       },
@@ -152,7 +147,7 @@ const NAV: { label: string; items: NavItemDef[] }[] = [
     label: "Administration",
     items: [
       {
-        title: "Staff",
+        title: "Staff accounts",
         href: "/admin/staff",
         icon: "staff",
         permission: "staff:manage",

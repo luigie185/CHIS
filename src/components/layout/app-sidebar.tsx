@@ -6,6 +6,7 @@ import {
   Baby,
   Brain,
   ClipboardList,
+  ClipboardPlus,
   FileUp,
   HeartPulse,
   Home,
@@ -41,6 +42,7 @@ import type { NavGroup, NavIcon } from "@/lib/nav";
 
 const ICONS: Record<NavIcon, LucideIcon> = {
   home: Home,
+  "new-visit": ClipboardPlus,
   patients: Users,
   queue: ListOrdered,
   consultations: Stethoscope,

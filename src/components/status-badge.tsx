@@ -14,7 +14,7 @@ const TONES: Record<Tone, string> = {
 /** Status values from the schema enums (§5.3) and how they look. */
 const STATUS: Record<string, { label: string; tone: Tone }> = {
   // encounter_status
-  in_queue: { label: "In queue", tone: "info" },
+  in_queue: { label: "Waiting", tone: "info" },
   in_progress: { label: "In progress", tone: "warning" },
   completed: { label: "Completed", tone: "success" },
   cancelled: { label: "Cancelled", tone: "neutral" },

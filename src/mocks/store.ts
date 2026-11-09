@@ -1,6 +1,7 @@
 import "server-only";
-import { subDays } from "date-fns";
+import type { Encounter } from "@/lib/types/encounter";
 import type { Patient } from "@/lib/types/patient";
+import { generateEncounters } from "./fixtures/encounters";
 import { generatePatients } from "./fixtures/patients";
 import { createRandom } from "./random";
 
@@ -11,21 +12,17 @@ import { createRandom } from "./random";
  */
 export type MockStore = {
   patients: Patient[];
-  /** Last visit per patient id (until encounters are mocked in F2). */
-  lastVisitAt: Map<string, string>;
+  encounters: Encounter[];
 };
 
 const SEED = 20261108;
 
 function createStore(): MockStore {
   const r = createRandom(SEED);
-  const today = new Date();
-  const patients = generatePatients(r, 220, today);
-  const lastVisitAt = new Map<string, string>();
-  for (const p of patients) {
-    if (r.chance(0.75)) lastVisitAt.set(p.id, subDays(today, r.int(0, 120)).toISOString());
-  }
-  return { patients, lastVisitAt };
+  const now = new Date();
+  const patients = generatePatients(r, 220, now);
+  const encounters = generateEncounters(r, patients, now);
+  return { patients, encounters };
 }
 
 const globalForMock = globalThis as unknown as { rhuMockStore?: MockStore };
@@ -33,4 +30,9 @@ const globalForMock = globalThis as unknown as { rhuMockStore?: MockStore };
 export function mockStore(): MockStore {
   globalForMock.rhuMockStore ??= createStore();
   return globalForMock.rhuMockStore;
+}
+
+/** Simulated latency so loading states are visible in development. */
+export function mockDelay(ms = 150) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

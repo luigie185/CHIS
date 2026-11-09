@@ -21,6 +21,7 @@ export type Patient = {
   philhealthStatus: PhilhealthStatus | null;
   is4psMember: boolean;
   bloodType: string | null;
+  privacyConsentAt: string | null; // RA 10173 consent captured at registration
   createdAt: string; // ISO timestamp
 };
 

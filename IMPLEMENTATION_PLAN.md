@@ -198,35 +198,36 @@ The system has **three roles**, matching the current system's users.
 
 | Role | Who | Summary |
 |---|---|---|
-| `admin` | RHU administrator / IT | Manages staff accounts, settings, lookups; views all analytics and audit logs. Read-only on clinical records by default. |
-| `doctor` | Physicians | Works the consultation queue: diagnosis, lab requests, prescriptions, referrals; completes encounters. Can also do everything staff can do clinically. |
-| `staff` | Nurses, midwives, encoders, BHWs | Front desk and program work: registers patients, takes vitals, creates encounters (adds to queue), records prenatal/postpartum, immunization, vaccination, risk assessments and mental health sessions, records referrals, runs CSV imports. **Cannot** diagnose, prescribe, or complete consultations. |
+| `admin` | RHU administrator / IT | Manages staff accounts, settings and lookups; sees **reports and analytics (aggregated counts and charts only)** and the audit log. Does **not** open individual patient records or enter clinical data. |
+| `staff` | Nurses and midwives | **Intake:** registers patients and enters personal information, records visit details and vital signs, then adds the patient to the queue. Also records program visits (prenatal, immunization, vaccination, risk, mental health) and incoming referrals. |
+| `doctor` | Physicians | **Consultation:** sees the queue (first come, first served), calls the next patient, records chief complaint, findings, diagnosis, **lab requests** and prescriptions, refers out if needed, and completes the consultation. |
 
 Account `status`: `active` | `inactive` (deactivated users cannot log in; sessions are revoked on deactivation).
 
-A staff member's job title (nurse, midwife, encoder…) is stored as `staff_profiles.position` for display and reports only. It does not change permissions.
+A staff member's job title (Nurse, Midwife) is stored as `staff_profiles.position` for display only. It does not change permissions.
+
+Admin is kept away from individual patient records on purpose: patient data is sensitive personal information (RA 10173), so only the people treating the patient can open it. Reports show totals, not names.
 
 ### 4.2 Permission matrix
 | Permission | admin | doctor | staff |
 |---|:-:|:-:|:-:|
-| `patient:read` | ✅ | ✅ | ✅ |
-| `patient:write` | ✅ | ✅ | ✅ |
-| `patient:delete` (soft) | ✅ | — | — |
-| `encounter:create` (add to queue) | — | ✅ | ✅ |
-| `vitals:write` | — | ✅ | ✅ |
-| `consultation:write` (diagnosis, labs, Rx) | — | ✅ | — |
+| `patient:read` | — | ✅ | ✅ |
+| `patient:write` (register, edit personal info) | — | — | ✅ |
+| `encounter:create` (visit details + add to queue) | — | — | ✅ |
+| `vitals:write` | — | — | ✅ |
+| `encounter:cancel` (remove from queue, with reason) | — | ✅ | ✅ |
+| `queue:consult` (call next, open consultation) | — | ✅ | — |
+| `consultation:write` (complaint, findings, diagnosis, lab requests, Rx) | — | ✅ | — |
 | `encounter:complete` | — | ✅ | — |
-| `encounter:cancel` | — | ✅ | ✅ |
-| `referral:write` | — | ✅ | ✅ |
-| `prenatal:write` | — | ✅ | ✅ |
-| `immunization:write` | — | ✅ | ✅ |
-| `risk:write` | — | ✅ | ✅ |
-| `mental_health:write` | — | ✅ | ✅ |
+| `referral:write` | — | ✅ (outgoing) | ✅ (incoming, at intake) |
+| `prenatal:write`, `immunization:write`, `risk:write`, `mental_health:write` | — | ✅ | ✅ |
 | `import:run` | ✅ | — | ✅ |
-| `reports:read` (analytics) | ✅ | ✅ | ✅ |
+| `reports:read` (analytics, disease/critical case counts) | ✅ | ✅ | — |
 | `staff:manage` | ✅ | — | — |
 | `settings:manage` | ✅ | — | — |
 | `audit:read` | ✅ | — | — |
+
+Patient records are never hard-deleted (§5.1). Corrections are made by editing, which is audit-logged.
 
 ---
 
@@ -735,6 +736,8 @@ Refresh materialized views nightly with a Vercel Cron job if needed.
 ### 6.5 Doctor workspace
 - Doctor dashboard: today's queue, in-progress patient, completed today, counts.
 - Consultation screen: patient summary + history sidebar, vitals, chief complaints, findings, diagnoses (multiple, primary flag), lab requests, prescriptions, referral, follow-up date.
+- **Lab requests:** the doctor selects the tests the patient needs (CBC, urinalysis, …); they print on the ITR / request slip. Result entry is out of scope for v1 (`lab_requests.status` stays `requested`).
+- **Queue order is strictly first come, first served** (lowest queue number first, regardless of mode of transaction). "Call next" always takes the oldest waiting patient; a doctor has at most one consultation in progress.
 - Prenatal consultation screen for prenatal encounters.
 - Complete encounter → prints prescription / referral slip (PDF).
 - Consultation history list (completed/cancelled) with filters.
@@ -917,17 +920,17 @@ Route groups: `(public)`, `(auth)`, `(app)` (requires session). Permission check
 | `/services/[slug]` | Service description pages | public |
 | `/login`, `/forgot-password`, `/reset-password` | Auth | public |
 | `/dashboard` | Staff dashboard | staff |
-| `/patients` | Patient list + search | all staff |
-| `/patients/new` | Register patient | all staff |
-| `/patients/[id]` | Patient profile (tabs) | all staff |
-| `/patients/[id]/edit` | Edit patient | all staff |
-| `/patients/[id]/print` | Printable record (PDF) | all staff |
-| `/encounters/new?patientId=` | Start encounter + vitals | staff, doctor |
+| `/patients` | Patient list + search | staff, doctor |
+| `/visits/new` | New ITR visit: patient → visit details → vitals → add to queue | staff |
+| `/patients/[id]` | Patient profile (tabs) | staff, doctor |
+| `/patients/[id]/edit` | Edit patient | staff |
+| `/patients/[id]/print` | Printable record (PDF) | staff, doctor |
+| `/encounters/new?patientId=` | Start a program encounter (prenatal, vaccination …) | staff |
 | `/queue` | Today's queue board | staff, doctor |
 | `/doctor` | Doctor dashboard | doctor |
 | `/doctor/consult/[encounterId]` | Consultation screen | doctor |
 | `/doctor/history` | Completed/cancelled consultations | doctor |
-| `/itr` | ITR table | staff, doctor |
+| `/itr`, `/itr/[id]` | ITR table, visit details + print | staff, doctor |
 | `/prenatal` | Prenatal table | staff, doctor |
 | `/prenatal/[pregnancyId]` | Pregnancy record + visits | staff, doctor |
 | `/prenatal/[pregnancyId]/delivery` | Delivery + newborn + postpartum | staff, doctor |
@@ -937,9 +940,9 @@ Route groups: `(public)`, `(auth)`, `(app)` (requires session). Permission check
 | `/risk` | Risk assessments | staff, doctor |
 | `/mental-health` | Sessions list/calendar | staff, doctor |
 | `/referrals` | Referred patients | staff, doctor |
-| `/cases/disease` | Disease cases | all |
-| `/cases/critical` | Critical cases | all |
-| `/analytics` | System analytics | all |
+| `/cases/disease` | Disease cases | admin, doctor |
+| `/cases/critical` | Critical cases | admin, doctor |
+| `/analytics` | System analytics | admin, doctor |
 | `/imports` | CSV import + history | admin, staff |
 | `/admin` | Admin dashboard | admin |
 | `/admin/staff` | Staff (active/inactive) | admin |
@@ -1165,8 +1168,8 @@ Estimated for 1–2 developers. Adjust to your schedule. **Part A builds the com
 |---|---|---|---|
 | **0. Setup** | Week 1 | Next.js + TS + Tailwind; Drizzle + PGlite (local) / Neon; Better Auth with roles; `proxy.ts`; role home pages; seed script; CI. | ✅ Done |
 | **F1. UI foundation** | Week 2 | shadcn/ui; app shell (sidebar by role, header, breadcrumbs, mobile nav); shared components (data table with search/filters/pagination, form fields, date picker, status badges, empty/loading/error states, confirm dialog, toasts); mock store + fixture generators; demo accounts for each role (admin, doctor, staff); "Demo data" badge; landing + service pages. | ✅ Done |
-| **F2. Patients & encounters** | Week 3 | Patient list/search/filters, register (with duplicate warning), profile with tabs, edit; start encounter + vitals; queue board; staff dashboard. | |
-| **F3. Doctor workspace** | Week 4 | Doctor dashboard; consultation screen (diagnoses, labs, prescriptions, referral); complete/cancel; consultation history; ITR table; referrals table; printable prescription and referral slip (PDF preview). | |
+| **F2. ITR (general consultation), end to end** | Weeks 3–4 | **Staff:** New visit wizard — find/register patient (duplicate warning) → visit details (mode, nature, purpose, incoming referral) → vital signs → review & add to queue (daily queue number); queue board with cancel; patient profile with visit history. **Doctor:** queue (first come, first served) with Call next; consultation screen (complaint, findings, diagnoses, lab requests, prescriptions, referral out, follow-up); complete. **Both:** ITR table with filters and printable visit record. **Admin:** dashboard with visit totals and top diagnoses (no names). | ✅ Done |
+| **F3. Patient & ITR polish** | Week 4 | Edit patient; consultation history filters; referrals table; printable prescription and referral slip; feedback from the ITR walkthrough. | |
 | **F4. Programs** | Weeks 5–6 | Prenatal (pregnancy record, visits + trimester checklists, labs, delivery, newborns, postpartum); EPI profiles + immunization card; vaccinations + appointments; risk assessment form + table; mental health sessions + participants. | |
 | **F5. Admin, cases & analytics** | Week 7 | Staff management screens; settings (facility, barangays, lab tests, vaccines); audit log viewer; disease and critical cases; analytics dashboard with charts and filters; CSV import screens (parse + preview + error report against the mock store). | |
 | **F6. UI review** | Week 8 | Walkthrough with RHU staff on the mock data; fix flows and wording; responsive and accessibility pass (`@axe-core/playwright`); Playwright smoke tests of the main paths. Freeze the screen designs. | |

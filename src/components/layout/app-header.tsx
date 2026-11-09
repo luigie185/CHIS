@@ -20,6 +20,9 @@ import type { NavGroup } from "@/lib/nav";
 import { ThemeToggle } from "./theme-toggle";
 import { UserMenu, type UserMenuUser } from "./user-menu";
 
+/** Path prefixes that are not pages of their own; they are left out of the breadcrumb. */
+const NOT_PAGES = new Set(["/doctor/consult", "/visits"]);
+
 function humanize(segment: string) {
   if (/^[0-9a-f-]{20,}$/i.test(segment)) return "Details";
   return segment.replace(/-/g, " ").replace(/^\w/, (c) => c.toUpperCase());
@@ -38,13 +41,21 @@ export function AppHeader({
   const titles = new Map(nav.flatMap((g) => g.items.map((i) => [i.href, i.title] as const)));
 
   const segments = pathname.split("/").filter(Boolean);
-  const crumbs = segments.map((seg, i) => {
-    const href = `/${segments.slice(0, i + 1).join("/")}`;
-    return { href, label: titles.get(href) ?? humanize(seg) };
-  });
+  const crumbs = segments
+    .map((seg, i) => {
+      const href = `/${segments.slice(0, i + 1).join("/")}`;
+      const parent = `/${segments.slice(0, i).join("/")}`;
+      // A record under /doctor/consult is the consultation itself.
+      const label = titles.get(href) ?? (parent === "/doctor/consult" ? "Consultation" : humanize(seg));
+      return { href, label };
+    })
+    .filter((c) => !NOT_PAGES.has(c.href));
 
   return (
-    <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+    <header
+      data-print="hide"
+      className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80"
+    >
       <SidebarTrigger className="-ml-1" />
       <Separator orientation="vertical" className="mr-2 data-[orientation=vertical]:h-4" />
       <Breadcrumb className="min-w-0">

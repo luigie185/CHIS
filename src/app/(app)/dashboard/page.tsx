@@ -1,53 +1,56 @@
-import { Baby, CalendarClock, ListOrdered, Users } from "lucide-react";
+import { CheckCircle2, ListOrdered, Plus, Stethoscope, Users } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AutoRefresh } from "@/components/auto-refresh";
+import { QueueList } from "@/components/itr/queue-list";
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireRole } from "@/lib/auth/session";
+import { getTodayQueue } from "@/server/encounters/queries";
 import { patientStats } from "@/server/patients/queries";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
-export default async function DashboardPage() {
+export default async function StaffDashboardPage() {
   const user = await requireRole("staff");
-  const stats = await patientStats();
+  const [queue, patients] = await Promise.all([getTodayQueue(), patientStats()]);
 
   return (
     <>
-      <PageHeader title={`Welcome, ${user.name}`} description="Today at the Rural Health Unit." />
+      <AutoRefresh seconds={30} />
+      <PageHeader
+        title={`Welcome, ${user.name}`}
+        description="Register patients, take vital signs, and add them to the doctor's queue."
+        actions={
+          <Button asChild size="lg">
+            <Link href="/visits/new">
+              <Plus /> New visit
+            </Link>
+          </Button>
+        }
+      />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard label="Waiting" value={queue.waiting.length} icon={ListOrdered} />
+        <StatCard label="With the doctor" value={queue.inProgress.length} icon={Stethoscope} />
+        <StatCard label="Done today" value={queue.done.length} icon={CheckCircle2} />
         <StatCard
           label="Registered patients"
-          value={stats.total}
-          hint={`${stats.newThisMonth} new in the last 30 days`}
+          value={patients.total}
+          hint={`${patients.newThisMonth} new in the last 30 days`}
           icon={Users}
-        />
-        <StatCard label="Children under 5" value={stats.children} icon={Baby} />
-        <StatCard label="In queue today" value="—" hint="Queue arrives in F2" icon={ListOrdered} />
-        <StatCard
-          label="Appointments today"
-          value="—"
-          hint="Appointments arrive in F4"
-          icon={CalendarClock}
         />
       </div>
       <Card className="mt-6">
-        <CardHeader>
-          <CardTitle>Quick actions</CardTitle>
-          <CardDescription>Common tasks for front-desk and clinical staff.</CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Waiting for the doctor</CardTitle>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/queue">Open queue</Link>
+          </Button>
         </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
-          <Button asChild>
-            <Link href="/patients">Find a patient</Link>
-          </Button>
-          <Button variant="outline" disabled>
-            Register patient (F2)
-          </Button>
-          <Button variant="outline" disabled>
-            Open queue (F2)
-          </Button>
+        <CardContent>
+          <QueueList items={queue.waiting} highlightFirst />
         </CardContent>
       </Card>
     </>

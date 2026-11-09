@@ -12,6 +12,8 @@ export type ToolbarFilter = {
   /** URL query parameter, e.g. "barangay". */
   param: string;
   label: string;
+  /** Text for the "no filter" choice. Defaults to "All <label>". */
+  allLabel?: string;
   options: { value: string; label: string }[];
 };
 
@@ -77,7 +79,8 @@ export function DataTableToolbar({
       <div className="flex flex-wrap items-center gap-2">
         {filters.map((f) => {
           const value = searchParams.get(f.param) ?? ALL;
-          const label = f.options.find((o) => o.value === value)?.label ?? `All ${f.label.toLowerCase()}`;
+          const allLabel = f.allLabel ?? `All ${f.label.toLowerCase()}`;
+          const label = f.options.find((o) => o.value === value)?.label ?? allLabel;
           return (
             <Select
               key={f.param}
@@ -91,7 +94,7 @@ export function DataTableToolbar({
                 <SelectValue>{label}</SelectValue>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={ALL}>All {f.label.toLowerCase()}</SelectItem>
+                <SelectItem value={ALL}>{allLabel}</SelectItem>
                 {f.options.map((o) => (
                   <SelectItem key={o.value} value={o.value}>
                     {o.label}

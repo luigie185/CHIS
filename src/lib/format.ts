@@ -34,3 +34,7 @@ export function formatDateTime(iso: string | null | undefined): string {
   if (!iso) return "—";
   return format(parseISO(iso), "MMM d, yyyy h:mm a");
 }
+
+export function sexLabel(sex: "male" | "female"): string {
+  return sex === "male" ? "Male" : "Female";
+}

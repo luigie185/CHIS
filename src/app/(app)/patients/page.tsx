@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { UserPlus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { DataTable, type Column } from "@/components/data-table/data-table";
 import { DataTableToolbar } from "@/components/data-table/data-table-toolbar";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { hasPermission } from "@/lib/auth/permissions";
+import { requirePermission } from "@/lib/auth/session";
 import { AGE_GROUP_OPTIONS, BARANGAY_OPTIONS, SEX_OPTIONS } from "@/lib/constants";
 import { formatAge, formatDate, formatPatientName } from "@/lib/format";
 import { getEnum, getInt, getString } from "@/lib/search-params";
@@ -19,10 +20,10 @@ const columns: Column<PatientListItem>[] = [
   {
     header: "Patient",
     cell: (p) => (
-      <div className="min-w-0">
-        <p className="truncate font-medium">{formatPatientName(p)}</p>
-        <p className="font-mono text-xs text-muted-foreground">{p.patientNo}</p>
-      </div>
+      <Link href={`/patients/${p.id}`} className="block min-w-0 hover:underline">
+        <span className="block truncate font-medium">{formatPatientName(p)}</span>
+        <span className="block font-mono text-xs text-muted-foreground">{p.patientNo}</span>
+      </Link>
     ),
   },
   { header: "Sex", cell: (p) => <span className="capitalize">{p.sex}</span>, hideOnMobile: true },
@@ -39,6 +40,7 @@ const columns: Column<PatientListItem>[] = [
 ];
 
 export default async function PatientsPage({ searchParams }: PageProps<"/patients">) {
+  const user = await requirePermission("patient:read");
   const sp = await searchParams;
   const result = await listPatients({
     q: getString(sp, "q"),
@@ -58,17 +60,14 @@ export default async function PatientsPage({ searchParams }: PageProps<"/patient
         title="Patients"
         description="Search the patient registry by name, patient number, or contact number."
         actions={
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span tabIndex={0}>
-                <Button disabled>
-                  <UserPlus />
-                  Register patient
-                </Button>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent>Coming in F2</TooltipContent>
-          </Tooltip>
+          hasPermission(user.role, "encounter:create") && (
+            <Button asChild>
+              <Link href="/visits/new">
+                <Plus />
+                New visit
+              </Link>
+            </Button>
+          )
         }
       />
       <DataTableToolbar

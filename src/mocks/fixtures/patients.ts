@@ -50,6 +50,7 @@ export function generatePatients(r: Random, count: number, today: Date): Patient
       philhealthStatus,
       is4psMember: r.chance(0.18),
       bloodType: r.chance(0.4) ? r.pick(BLOOD_TYPES) : null,
+      privacyConsentAt: registered.toISOString(),
       createdAt: registered.toISOString(),
     });
   }

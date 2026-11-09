@@ -5,53 +5,38 @@ describe("permission matrix (admin, doctor, staff)", () => {
   it("has exactly three roles", () => {
     expect(ROLES).toEqual(["admin", "doctor", "staff"]);
     expect(isRole("nurse")).toBe(false);
-    expect(isRole("encoder")).toBe(false);
   });
 
-  it("lets only doctors write consultations and complete encounters", () => {
-    for (const role of ROLES) {
-      expect(hasPermission(role, "consultation:write")).toBe(role === "doctor");
-      expect(hasPermission(role, "encounter:complete")).toBe(role === "doctor");
+  it("lets only staff do ITR intake (patient info, visit, vitals, queue)", () => {
+    for (const p of ["patient:write", "encounter:create", "vitals:write"] as const) {
+      for (const role of ROLES) expect(hasPermission(role, p)).toBe(role === "staff");
     }
   });
 
-  it("lets staff do front desk and program work", () => {
-    for (const p of [
-      "encounter:create",
-      "vitals:write",
-      "encounter:cancel",
-      "referral:write",
-      "prenatal:write",
-      "immunization:write",
-      "risk:write",
-      "mental_health:write",
-      "import:run",
-      "reports:read",
-    ] as const) {
-      expect(hasPermission("staff", p)).toBe(true);
+  it("lets only doctors consult, diagnose and complete", () => {
+    for (const p of ["queue:consult", "consultation:write", "encounter:complete"] as const) {
+      for (const role of ROLES) expect(hasPermission(role, p)).toBe(role === "doctor");
     }
   });
 
-  it("keeps admins out of clinical writes", () => {
-    for (const p of [
-      "encounter:create",
-      "vitals:write",
-      "consultation:write",
-      "prenatal:write",
-      "mental_health:write",
-    ] as const) {
+  it("keeps admin away from patient records and clinical data", () => {
+    for (const p of PERMISSIONS.filter((p) =>
+      /^(patient|encounter|vitals|queue|consultation|referral|prenatal|immunization|risk|mental_health):/.test(
+        p,
+      ),
+    )) {
       expect(hasPermission("admin", p)).toBe(false);
     }
   });
 
-  it("reserves staff, settings and audit management for admins", () => {
-    for (const p of ["staff:manage", "settings:manage", "audit:read", "patient:delete"] as const) {
+  it("gives admin accounts, settings, audit and reports", () => {
+    for (const p of ["staff:manage", "settings:manage", "audit:read"] as const) {
       for (const role of ROLES) expect(hasPermission(role, p)).toBe(role === "admin");
     }
+    expect(hasPermission("admin", "reports:read")).toBe(true);
   });
 
-  it("gives every role patient read access and denies guests everything", () => {
-    for (const role of ROLES) expect(hasPermission(role, "patient:read")).toBe(true);
+  it("denies guests everything", () => {
     for (const p of PERMISSIONS) expect(hasPermission(null, p)).toBe(false);
   });
 

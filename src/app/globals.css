@@ -121,3 +121,22 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Printing: only the page content (ITR record, slips). */
+@media print {
+  [data-slot="sidebar-gap"],
+  [data-slot="sidebar-container"],
+  [data-print="hide"] {
+    display: none !important;
+  }
+  [data-slot="sidebar-inset"] {
+    margin: 0 !important;
+    box-shadow: none !important;
+  }
+  body {
+    background: white;
+  }
+  @page {
+    margin: 12mm;
+  }
+}
