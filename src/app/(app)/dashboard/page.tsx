@@ -11,7 +11,7 @@ import { patientStats } from "@/server/patients/queries";
 export const metadata: Metadata = { title: "Dashboard" };
 
 export default async function DashboardPage() {
-  const user = await requireRole("nurse", "midwife", "encoder");
+  const user = await requireRole("staff");
   const stats = await patientStats();
 
   return (

@@ -14,6 +14,8 @@ export const staffProfiles = pgTable("staff_profiles", {
   purok: text("purok"),
   barangayId: integer("barangay_id").references(() => barangays.id),
   city: text("city"),
+  /** Job title for display only (Nurse, Midwife, Encoder, BHW…). Permissions come from user.role. */
+  position: text("position"),
   prcNumber: text("prc_number"),
   prcValidity: date("prc_validity"),
   specialization: text("specialization"),

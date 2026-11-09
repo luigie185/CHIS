@@ -37,7 +37,7 @@ type NavItemDef = Omit<NavItem, "href"> & {
   roles?: UserRole[];
 };
 
-const CLINICAL: UserRole[] = ["doctor", "nurse", "midwife"];
+const CLINICAL: UserRole[] = ["doctor", "staff"];
 
 // Routes and roles follow IMPLEMENTATION_PLAN.md §8.
 const NAV: { label: string; items: NavItemDef[] }[] = [
@@ -82,7 +82,7 @@ const NAV: { label: string; items: NavItemDef[] }[] = [
         title: "Prenatal",
         href: "/prenatal",
         icon: "prenatal",
-        roles: ["doctor", "midwife"],
+        roles: CLINICAL,
         ready: false,
         phase: "F4",
       },
@@ -107,7 +107,7 @@ const NAV: { label: string; items: NavItemDef[] }[] = [
         title: "Mental health",
         href: "/mental-health",
         icon: "mental-health",
-        roles: ["doctor", "nurse"],
+        roles: CLINICAL,
         ready: false,
         phase: "F4",
       },
@@ -120,7 +120,6 @@ const NAV: { label: string; items: NavItemDef[] }[] = [
         title: "Disease cases",
         href: "/cases/disease",
         icon: "disease",
-        roles: [...CLINICAL, "admin"],
         ready: false,
         phase: "F5",
       },
@@ -128,7 +127,6 @@ const NAV: { label: string; items: NavItemDef[] }[] = [
         title: "Critical cases",
         href: "/cases/critical",
         icon: "critical",
-        roles: [...CLINICAL, "admin"],
         ready: false,
         phase: "F5",
       },

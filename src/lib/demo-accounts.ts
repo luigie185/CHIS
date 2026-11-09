@@ -10,6 +10,7 @@ export const DEMO_ACCOUNTS: {
   email: string;
   firstName: string;
   lastName: string;
+  position?: string;
   prcNumber?: string;
   specialization?: string;
 }[] = [
@@ -18,16 +19,16 @@ export const DEMO_ACCOUNTS: {
     email: "doctor@rhu.local",
     firstName: "Andrea",
     lastName: "Villanueva",
+    position: "Municipal Health Officer",
     prcNumber: "0123456",
     specialization: "Family Medicine",
   },
-  { role: "nurse", email: "nurse@rhu.local", firstName: "Mark", lastName: "Bautista", prcNumber: "0234567" },
   {
-    role: "midwife",
-    email: "midwife@rhu.local",
+    role: "staff",
+    email: "staff@rhu.local",
     firstName: "Rowena",
     lastName: "Santos",
-    prcNumber: "0345678",
+    position: "Nurse",
+    prcNumber: "0234567",
   },
-  { role: "encoder", email: "encoder@rhu.local", firstName: "Jomar", lastName: "Reyes" },
 ];

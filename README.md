@@ -15,7 +15,7 @@ pnpm db:setup               # create tables + seed barangays, lab tests, vaccine
 pnpm dev                    # starts the local database and the app → http://localhost:3000
 ```
 
-Open http://localhost:3000/login. In development the login page shows **demo account buttons** (admin, doctor, nurse, midwife, encoder) so you can switch roles in one click. Or sign in with `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` from `.env` (default `admin@rhu.local` / `ChangeMe123!`). Demo accounts need `SEED_DEMO_ACCOUNTS=true` in `.env` before `pnpm db:setup`.
+Open http://localhost:3000/login. In development the login page shows **demo account buttons** (admin, doctor, staff) so you can switch roles in one click. Or sign in with `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` from `.env` (default `admin@rhu.local` / `ChangeMe123!`). Demo accounts need `SEED_DEMO_ACCOUNTS=true` in `.env` before `pnpm db:setup`.
 
 Patient and clinical screens use **generated demo data** (a "Demo data" badge shows in the header). It resets when the dev server restarts. Logins and roles are real.
 

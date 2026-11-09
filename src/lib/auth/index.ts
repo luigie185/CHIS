@@ -35,7 +35,7 @@ export const auth = betterAuth({
   },
   plugins: [
     admin({
-      defaultRole: "encoder",
+      defaultRole: "staff",
       adminRoles: ["admin"],
       bannedUserMessage: "Your account has been deactivated. Please contact the RHU administrator.",
     }),

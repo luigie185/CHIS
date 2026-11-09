@@ -194,37 +194,39 @@ The UI for every module is built first so the whole system can be clicked throug
 ## 4. Roles and Permissions
 
 ### 4.1 Roles
+The system has **three roles**, matching the current system's users.
+
 | Role | Who | Summary |
 |---|---|---|
 | `admin` | RHU administrator / IT | Manages staff accounts, settings, lookups; views all analytics and audit logs. Read-only on clinical records by default. |
-| `doctor` | Physicians | Works the consultation queue, records diagnosis, lab requests, prescriptions, referrals; completes encounters. |
-| `nurse` | Nurses | Registers patients, takes vitals, creates encounters, records vaccinations and risk assessments. |
-| `midwife` | Midwives | Same as nurse + full prenatal/postpartum module. |
-| `encoder` | Data encoders / BHWs | Registers patients, creates encounters, CSV imports. No diagnosis or prescriptions. |
+| `doctor` | Physicians | Works the consultation queue: diagnosis, lab requests, prescriptions, referrals; completes encounters. Can also do everything staff can do clinically. |
+| `staff` | Nurses, midwives, encoders, BHWs | Front desk and program work: registers patients, takes vitals, creates encounters (adds to queue), records prenatal/postpartum, immunization, vaccination, risk assessments and mental health sessions, records referrals, runs CSV imports. **Cannot** diagnose, prescribe, or complete consultations. |
 
 Account `status`: `active` | `inactive` (deactivated users cannot log in; sessions are revoked on deactivation).
 
+A staff member's job title (nurse, midwife, encoder…) is stored as `staff_profiles.position` for display and reports only. It does not change permissions.
+
 ### 4.2 Permission matrix
-| Permission | admin | doctor | nurse | midwife | encoder |
-|---|:-:|:-:|:-:|:-:|:-:|
-| `patient:read` | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `patient:write` | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `patient:delete` (soft) | ✅ | — | — | — | — |
-| `encounter:create` (add to queue) | — | ✅ | ✅ | ✅ | ✅ |
-| `vitals:write` | — | ✅ | ✅ | ✅ | ✅ |
-| `consultation:write` (diagnosis, labs, Rx) | — | ✅ | — | — | — |
-| `encounter:complete` | — | ✅ | — | — | — |
-| `encounter:cancel` | — | ✅ | ✅ | ✅ | — |
-| `referral:write` | — | ✅ | ✅ | ✅ | — |
-| `prenatal:write` | — | ✅ | — | ✅ | — |
-| `immunization:write` | — | ✅ | ✅ | ✅ | — |
-| `risk:write` | — | ✅ | ✅ | ✅ | — |
-| `mental_health:write` | — | ✅ | ✅ | — | — |
-| `import:run` | ✅ | — | — | — | ✅ |
-| `reports:read` (analytics) | ✅ | ✅ | ✅ | ✅ | — |
-| `staff:manage` | ✅ | — | — | — | — |
-| `settings:manage` | ✅ | — | — | — | — |
-| `audit:read` | ✅ | — | — | — | — |
+| Permission | admin | doctor | staff |
+|---|:-:|:-:|:-:|
+| `patient:read` | ✅ | ✅ | ✅ |
+| `patient:write` | ✅ | ✅ | ✅ |
+| `patient:delete` (soft) | ✅ | — | — |
+| `encounter:create` (add to queue) | — | ✅ | ✅ |
+| `vitals:write` | — | ✅ | ✅ |
+| `consultation:write` (diagnosis, labs, Rx) | — | ✅ | — |
+| `encounter:complete` | — | ✅ | — |
+| `encounter:cancel` | — | ✅ | ✅ |
+| `referral:write` | — | ✅ | ✅ |
+| `prenatal:write` | — | ✅ | ✅ |
+| `immunization:write` | — | ✅ | ✅ |
+| `risk:write` | — | ✅ | ✅ |
+| `mental_health:write` | — | ✅ | ✅ |
+| `import:run` | ✅ | — | ✅ |
+| `reports:read` (analytics) | ✅ | ✅ | ✅ |
+| `staff:manage` | ✅ | — | — |
+| `settings:manage` | ✅ | — | — |
+| `audit:read` | ✅ | — | — |
 
 ---
 
@@ -266,7 +268,7 @@ audit_logs, import_jobs, facility_settings, lab_tests, vaccines (lookups)
 
 ### 5.3 Enums
 ```sql
-user_role            : admin | doctor | nurse | midwife | encoder
+user_role            : admin | doctor | staff
 user_status          : active | inactive
 sex                  : male | female
 civil_status         : single | married | widowed | separated | live_in
@@ -304,7 +306,7 @@ import_status        : pending | processing | completed | failed
 | email | text unique | |
 | email_verified | boolean | |
 | image | text null | Blob URL of profile picture |
-| role | user_role | admin plugin field, default `encoder` |
+| role | user_role | admin plugin field, default `staff` |
 | banned | boolean | admin plugin; used for **deactivation** |
 | ban_reason | text null | e.g. "Deactivated by admin" |
 | ban_expires | timestamptz null | |
@@ -319,7 +321,8 @@ import_status        : pending | processing | completed | failed
 | first_name, middle_name, last_name | text | |
 | phone | varchar(13) | |
 | purok, barangay_id, city | text / FK | |
-| prc_number | text null | required for doctor/nurse/midwife |
+| position | text null | job title for display, e.g. Nurse, Midwife, Encoder, BHW (does not affect permissions) |
+| prc_number | text null | required for doctors; optional for staff (nurses, midwives) |
 | prc_validity | date null | warn admin when expiring |
 | specialization | text null | doctors |
 | status | user_status | mirrors `banned` for reporting |
@@ -698,7 +701,7 @@ Refresh materialized views nightly with a Vercel Cron job if needed.
 ## 6. Modules and Features
 
 ### 6.1 Authentication and account
-- Email + password login; redirect by role (admin → `/admin`, doctor → `/doctor`, others → `/dashboard`).
+- Email + password login; redirect by role (admin → `/admin`, doctor → `/doctor`, staff → `/dashboard`).
 - Deactivated accounts cannot log in; deactivation revokes active sessions.
 - Login rate limiting and lockout message.
 - Forgot / reset password via email (Resend) — admins can also reset a staff password.
@@ -777,7 +780,7 @@ Refresh materialized views nightly with a Vercel Cron job if needed.
 ### 6.12 Mental health
 - Create sessions (individual/group), add participants (linked to patients), mark attendance and status.
 - Session calendar and list.
-- Restricted notes (only doctor/nurse roles).
+- Restricted notes (doctor and staff only; never admin).
 
 ### 6.13 Referrals
 - Record incoming and outgoing referrals on any encounter.
@@ -832,7 +835,7 @@ Refresh materialized views nightly with a Vercel Cron job if needed.
   → Better Auth verifies credentials (rate limited)
   → banned (inactive)? → "Your account has been deactivated."
   → create session cookie
-  → redirect by role: admin → /admin | doctor → /doctor | others → /dashboard
+  → redirect by role: admin → /admin | doctor → /doctor | staff → /dashboard
 ```
 
 ### 7.2 General consultation (walk-in)
@@ -856,7 +859,7 @@ Both appear in Referred Patients table and analytics.
 
 ### 7.4 Prenatal → delivery → postpartum → EPI
 ```
-Midwife: patient (female) → New encounter program=prenatal
+Staff: patient (female) → New encounter program=prenatal
        → Open pregnancy (LMP → EDC auto, OB history, labs)
        → Each visit: prenatal_visit (AOG → trimester auto) + checklist
        → Doctor may review in queue (prenatal consultation screen)
@@ -868,16 +871,16 @@ EPI: newborn follows vaccination schedule (7.5)
 
 ### 7.5 Vaccination
 ```
-Nurse: patient → New encounter program=vaccination
+Staff: patient → New encounter program=vaccination
      → Select vaccine + dose → vitals → save vaccination
      → System suggests next dose date from vaccines.schedule → create vaccine_appointment
 Cron (daily): scheduled appointments past date → missed; build today's reminder list
-Nurse: appointments page → complete (links vaccination) / reschedule / cancel
+Staff: appointments page → complete (links vaccination) / reschedule / cancel
 ```
 
 ### 7.6 Risk assessment
 ```
-Nurse: patient → New encounter program=risk → risk form
+Staff: patient → New encounter program=risk → risk form
      → server computes risk_level → save
      → high/very_high → appears in Critical Cases + follow-up list
 ```
@@ -896,7 +899,7 @@ Admin: create staff (role, PRC) → staff gets credentials / invite email
 
 ### 7.9 CSV import
 ```
-Encoder/Admin: choose import type → download template → upload CSV
+Staff/Admin: choose import type → download template → upload CSV
   → browser parses (Papa Parse) + Zod validates each row → preview with errors
   → confirm → batches of N rows → server action inserts in transaction per batch
   → import_jobs updated (success/failed, errors) → downloadable error report
@@ -913,31 +916,31 @@ Route groups: `(public)`, `(auth)`, `(app)` (requires session). Permission check
 | `/` | Landing page | public |
 | `/services/[slug]` | Service description pages | public |
 | `/login`, `/forgot-password`, `/reset-password` | Auth | public |
-| `/dashboard` | Staff dashboard | nurse, midwife, encoder |
+| `/dashboard` | Staff dashboard | staff |
 | `/patients` | Patient list + search | all staff |
 | `/patients/new` | Register patient | all staff |
 | `/patients/[id]` | Patient profile (tabs) | all staff |
 | `/patients/[id]/edit` | Edit patient | all staff |
 | `/patients/[id]/print` | Printable record (PDF) | all staff |
-| `/encounters/new?patientId=` | Start encounter + vitals | all except admin |
-| `/queue` | Today's queue board | all except admin |
+| `/encounters/new?patientId=` | Start encounter + vitals | staff, doctor |
+| `/queue` | Today's queue board | staff, doctor |
 | `/doctor` | Doctor dashboard | doctor |
 | `/doctor/consult/[encounterId]` | Consultation screen | doctor |
 | `/doctor/history` | Completed/cancelled consultations | doctor |
-| `/itr` | ITR table | clinical roles |
-| `/prenatal` | Prenatal table | doctor, midwife |
-| `/prenatal/[pregnancyId]` | Pregnancy record + visits | doctor, midwife |
-| `/prenatal/[pregnancyId]/delivery` | Delivery + newborn + postpartum | doctor, midwife |
-| `/immunization` | EPI profiles table | clinical roles |
-| `/vaccinations` | Vaccination records | clinical roles |
-| `/vaccinations/appointments` | Appointments (today/upcoming/missed) | clinical roles |
-| `/risk` | Risk assessments | clinical roles |
-| `/mental-health` | Sessions list/calendar | doctor, nurse |
-| `/referrals` | Referred patients | clinical roles |
-| `/cases/disease` | Disease cases | clinical roles, admin |
-| `/cases/critical` | Critical cases | clinical roles, admin |
-| `/analytics` | System analytics | admin, clinical roles |
-| `/imports` | CSV import + history | admin, encoder |
+| `/itr` | ITR table | staff, doctor |
+| `/prenatal` | Prenatal table | staff, doctor |
+| `/prenatal/[pregnancyId]` | Pregnancy record + visits | staff, doctor |
+| `/prenatal/[pregnancyId]/delivery` | Delivery + newborn + postpartum | staff, doctor |
+| `/immunization` | EPI profiles table | staff, doctor |
+| `/vaccinations` | Vaccination records | staff, doctor |
+| `/vaccinations/appointments` | Appointments (today/upcoming/missed) | staff, doctor |
+| `/risk` | Risk assessments | staff, doctor |
+| `/mental-health` | Sessions list/calendar | staff, doctor |
+| `/referrals` | Referred patients | staff, doctor |
+| `/cases/disease` | Disease cases | all |
+| `/cases/critical` | Critical cases | all |
+| `/analytics` | System analytics | all |
+| `/imports` | CSV import + history | admin, staff |
 | `/admin` | Admin dashboard | admin |
 | `/admin/staff` | Staff (active/inactive) | admin |
 | `/admin/staff/new`, `/admin/staff/[id]` | Create / edit staff | admin |
@@ -1031,7 +1034,7 @@ Patient health data is **sensitive personal information** under the Philippine D
 ### 10.1 Access control
 - `proxy.ts` (Next 16's name for middleware) redirects any unauthenticated request outside `(public)` and `(auth)` to `/login`.
 - Every query/action checks role permissions server-side (`requirePermission`).
-- Least privilege: admins do not edit clinical content; encoders cannot diagnose or prescribe.
+- Least privilege: admins do not edit clinical content; staff cannot diagnose, prescribe, or complete consultations.
 - Session idle timeout and absolute session lifetime.
 
 ### 10.2 Data protection
@@ -1067,7 +1070,7 @@ Patient health data is **sensitive personal information** under the Philippine D
 ### 11.2 Table mapping
 | Old table | New table(s) | Notes |
 |---|---|---|
-| `users` | `user` + `account` + `staff_profiles` | Bcrypt hashes cannot be reused by default — **force password reset** for all staff (or configure Better Auth to verify bcrypt on first login). `status=inactive` → `banned=true`. `role=staff/user` → `encoder` (admin reassigns). |
+| `users` | `user` + `account` + `staff_profiles` | Bcrypt hashes cannot be reused by default — **force password reset** for all staff (or configure Better Auth to verify bcrypt on first login). `status=inactive` → `banned=true`. `role=admin` → `admin`, `role=doctor` → `doctor`, `role=staff/user` → `staff`. |
 | `personal_information` | `patients` | Drop `age`; map `barangay` text → `barangay_id`; `sex` normalized; generate `patient_no`. |
 | `consultation_details` | `encounters` (program=general) + `vital_signs` + `referrals` | Split `bloodPressure` "120/80" → systolic/diastolic; `status 'in queue'` → `in_queue`; `consultationDate`+`consultationTime` → `encounter_at`; referral columns → `referrals` row when filled. |
 | `visit_information` | `consultations` + `encounter_diagnoses` + `lab_requests` | `diagnosis` text → `encounter_diagnoses.label` (skip `"None"`); `selectedLabTests` JSON → `lab_requests` rows. |
@@ -1161,7 +1164,7 @@ Estimated for 1–2 developers. Adjust to your schedule. **Part A builds the com
 | Phase | Duration | Deliverables | Status |
 |---|---|---|---|
 | **0. Setup** | Week 1 | Next.js + TS + Tailwind; Drizzle + PGlite (local) / Neon; Better Auth with roles; `proxy.ts`; role home pages; seed script; CI. | ✅ Done |
-| **F1. UI foundation** | Week 2 | shadcn/ui; app shell (sidebar by role, header, breadcrumbs, mobile nav); shared components (data table with search/filters/pagination, form fields, date picker, status badges, empty/loading/error states, confirm dialog, toasts); mock store + fixture generators; demo accounts for each role; "Demo data" badge; landing + service pages. | ✅ Done |
+| **F1. UI foundation** | Week 2 | shadcn/ui; app shell (sidebar by role, header, breadcrumbs, mobile nav); shared components (data table with search/filters/pagination, form fields, date picker, status badges, empty/loading/error states, confirm dialog, toasts); mock store + fixture generators; demo accounts for each role (admin, doctor, staff); "Demo data" badge; landing + service pages. | ✅ Done |
 | **F2. Patients & encounters** | Week 3 | Patient list/search/filters, register (with duplicate warning), profile with tabs, edit; start encounter + vitals; queue board; staff dashboard. | |
 | **F3. Doctor workspace** | Week 4 | Doctor dashboard; consultation screen (diagnoses, labs, prescriptions, referral); complete/cancel; consultation history; ITR table; referrals table; printable prescription and referral slip (PDF preview). | |
 | **F4. Programs** | Weeks 5–6 | Prenatal (pregnancy record, visits + trimester checklists, labs, delivery, newborns, postpartum); EPI profiles + immunization card; vaccinations + appointments; risk assessment form + table; mental health sessions + participants. | |

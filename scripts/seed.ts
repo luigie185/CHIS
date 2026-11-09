@@ -146,6 +146,7 @@ async function createStaff(
     role: UserRole;
     firstName: string;
     lastName: string;
+    position?: string;
     prcNumber?: string;
     specialization?: string;
   },
@@ -170,6 +171,7 @@ async function createStaff(
       userId: id,
       firstName: a.firstName,
       lastName: a.lastName,
+      position: a.position ?? null,
       prcNumber: a.prcNumber ?? null,
       specialization: a.specialization ?? null,
     });
